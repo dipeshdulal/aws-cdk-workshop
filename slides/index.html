@@ -49,7 +49,6 @@
 						- Add API gateway at the front, call via http request.
 						- Know about constructs library, define reusable constructs.
 						- Consume constructs from other people.
-						- Using AWS AppSync GraphQL with CDK.
 						
 					</textarea>
 				</section>
@@ -153,6 +152,347 @@
 						
 							Resources will get deleted.
 
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						## Let's create lambda
+
+						- Create directory called `lambda` next to `bin` and `lib`.
+						- Add a file called `hello.js`.
+
+						```js
+						exports.handler = async function(event) {
+							return {
+								statusCode: 200,
+								headers: { "Content-Type": "text/plain" },
+								body: `Hello, CDK! You've hit ${event.path}\n`
+							};
+						};
+						```
+
+						- Just a simple function that returns hello message with the path.
+
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						## Add lambda in our stack
+
+						- Go to `lib/cdk-workshop-stack.ts`.
+						- Add a lambda function;
+
+						```js
+						constructor(...) {
+							super(scope, id, props);
+
+							// add lamba code
+							const hello = new lambda.Function(this, 'HelloHandler', {
+								runtime: lambda.Runtime.NODEJS_16_X,  
+								code: lambda.Code.fromAsset('lambda'),
+								handler: 'hello.handler'
+							});
+						}
+						```
+
+						- Check difference `cdk diff`
+						- Deploy the stack `cdk deploy`
+
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						`(scope, id, props)`
+						## Constructs
+
+						- Many classes have the same parameters.
+						- Basic building blocks of CDK apps, abstract cloud components.
+
+						| Param | Details | 
+						| -- | -- |
+						| `scope` | Where construct is created |
+						| `id` | local id, should be unique in same scope | 
+						| `props` | set of initialization props | 
+
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						## API Gateway
+
+						- Gateway exposes HTTP Endpoint so that any one can hit it.
+						- Any request will be proxied to lambda function and response from function back to the user.
+					
+						```
+						// after lambda function code
+
+						new apigateway.LambdaRestApi(this, 'Endpoint', {
+							handler: hello
+						});
+						```
+
+						- `cdk deploy` and check the url in the output after deployment is completed.
+
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						<img src="https://cdkworkshop.com/images/hit-counter.png" />
+
+						## `HitCounter` constructs
+
+						- Can be attached to any function to count the hits.
+						- Stores the count in dynamodb table.
+
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						- Create file called `hitcounter.ts` inside `lib`.
+
+						```
+						// some imports ...
+						import { Construct } from 'constructs';
+						
+						export interface HitCounterProps {
+							downstream: lambda.IFunction;
+						}
+						export class HitCounter extends Construct {
+							constructor(
+								scope: Construct, id: string, props: HitCounterProps
+							) {
+								super(scope, id);
+							}
+						}
+						```
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						- Write lambda handler code. `lambda/hitcounter.js`
+						
+						```
+						const { DynamoDB, Lambda } = require('aws-sdk');
+
+						exports.handler = async function(event) {
+						  console.log("request:", JSON.stringify(event));
+						
+						  // create AWS SDK clients
+						  const dynamo = new DynamoDB();
+						  const lambda = new Lambda();
+						
+						  // update dynamo entry for "path" with hits++
+						  await dynamo.updateItem({
+							TableName: process.env.HITS_TABLE_NAME,
+							Key: { path: { S: event.path } },
+							UpdateExpression: 'ADD hits :incr',
+							ExpressionAttributeValues: { ':incr': { N: '1' } }
+						  }).promise();
+						
+						  // call downstream function and capture response
+						  const resp = await lambda.invoke({
+							FunctionName: process.env.DOWNSTREAM_FUNCTION_NAME,
+							Payload: JSON.stringify(event)
+						  }).promise();
+						
+						  console.log('downstream response:', JSON.stringify(resp));
+						
+						  // return response back to upstream caller
+						  return JSON.parse(resp.Payload);
+						};
+						```
+
+						- 👀: `HITS_TABLE_NAME` and `DOWNSTREAM_FUNCTION_NAME`
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						- in `HitCounter` construct, create a new table.
+
+						```
+						const table = new dynamodb.Table(this, 'Hits', {
+							partitionKey: {
+								name: 'path', 
+								type: dynamodb.AttributeType.STRING 
+							}
+						});
+						```
+
+						- Add a new lambda function. (Previously created one)
+
+						```
+						this.handler = new lambda.Function(this, 'HitCounterHandler', {
+							runtime: lambda.Runtime.NODEJS_14_X,
+							handler: 'hitcounter.handler',
+							code: lambda.Code.fromAsset('lambda'),
+							environment: {
+								DOWNSTREAM_FUNCTION_NAME: props.downstream.functionName,
+								HITS_TABLE_NAME: table.tableName // late bound values
+							}
+						});
+						```
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						- Add `HitCounter` to our stack.
+
+						```
+						// other code...
+
+						const helloWithCounter = new HitCounter(
+							this, 
+							'HelloHitCounter', {
+								downstream: hello
+							}
+						);
+					  
+						new apigw.LambdaRestApi(this, 'Endpoint', {
+							handler: helloWithCounter.handler
+						});
+						```
+						- `cdk deploy`.
+						- Test the endpoint. 🤞
+					</textarea>
+				</section>
+
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						#### Debugging 🐞
+						- Go to lambda function in aws console, select the newly created function and view it's logs.
+						- We get something like;
+
+						```
+						{
+							"errorMessage": "User: arn:aws:sts::585695036304:assumed-role/CdkWorkshopStack-HelloHitCounterHitCounterHandlerS-TU5M09L1UBID/CdkWorkshopStack-HelloHitCounterHitCounterHandlerD-144HVUNEWRWEO is not authorized to perform: dynamodb:UpdateItem on resource: arn:aws:dynamodb:us-east-1:585695036304:table/CdkWorkshopStack-HelloHitCounterHits7AAEBF80-1DZVT3W84LJKB",
+							"errorType": "AccessDeniedException",
+							"stackTrace": [
+								"Request.extractError (/var/runtime/node_modules/aws-sdk/lib/protocol/json.js:48:27)",
+								"Request.callListeners (/var/runtime/node_modules/aws-sdk/lib/sequential_executor.js:105:20)",
+								"Request.emit (/var/runtime/node_modules/aws-sdk/lib/sequential_executor.js:77:10)",
+								"Request.emit (/var/runtime/node_modules/aws-sdk/lib/request.js:683:14)",
+								"Request.transition (/var/runtime/node_modules/aws-sdk/lib/request.js:22:10)",
+								"AcceptorStateMachine.runTo (/var/runtime/node_modules/aws-sdk/lib/state_machine.js:14:12)",
+								"/var/runtime/node_modules/aws-sdk/lib/state_machine.js:26:10",
+								"Request.<anonymous> (/var/runtime/node_modules/aws-sdk/lib/request.js:38:9)",
+								"Request.<anonymous> (/var/runtime/node_modules/aws-sdk/lib/request.js:685:12)",
+								"Request.callListeners (/var/runtime/node_modules/aws-sdk/lib/sequential_executor.js:115:18)"
+							]
+						}
+						```
+
+						- Looks like lambda function can't write to dynamodb.
+
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						#### Granting permissions
+
+						- Grant lambda the permission to read and write the data of the table.
+
+						```
+						table.grantReadWriteData(this.handler);
+						```
+						
+						- Deploy again. 
+
+						- Again, error. 😢
+
+						
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						- Look at logs again.
+						- Looks like lambda function doesn't have permission to invoke the function.
+
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						- Grant the invoke permission to the handler in `HitCounter` construct.
+						- Get downstream function from `props.downstream`.
+
+							``` 
+							props.downstream.grantInvoke(this.handler);
+							```
+
+						- Deploy again! 👀
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						#### Test It 🧪
+
+						- Hit different urls.
+						- Open dynamodb console.
+						- Make sure that the hits are being recorded.
+
+						`HitCounter` can now be used with any lambda function that serves as proxy backend. 
+						We could even package it as simple javascript function and publish it to npm.
+						Any one could install it 🎉.
+
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						### Install a library. 
+
+						https://www.npmjs.com/package/cdk-dynamo-table-viewer
+
+						Use it in our current code.
+
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						### Check the library code. 🕵️‍♂️
+
+						How is it written?
+
+					</textarea>
+				</section>
+
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						## Thank You 🙇‍♂️
+
+						Checkout [cdkworkshop](www.cdkworkshop.com) to learn more about testing the cdk code and using pipelines.
 					</textarea>
 				</section>
 			</div>
