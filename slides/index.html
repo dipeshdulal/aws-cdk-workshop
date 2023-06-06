@@ -16,8 +16,145 @@
 	<body>
 		<div class="reveal">
 			<div class="slides">
-				<section>Slide 1</section>
-				<section>Slide 2</section>
+				<section data-markdown>
+					<textarea data-template>
+						
+						<img src="/cdk.png" />
+
+						## AWS CDK Workshop
+
+						Most of the information in this workshop is present at [cdkworkshop.com](https://cdkworkshop.com/). 
+						
+						We will be working with typescript mostly but you can do the same with other programming languages supported by the cdk.
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						## What is CDK?
+						- Cloud Development Kit
+						- New software development framework from AWS
+						- Define cloud infrastructure in your favorite programming language and deploy using cloud formation
+
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						### What we are going to build
+
+						- Simple "Hello, world" lambda function. 🙋‍♂️
+						- Add API gateway at the front, call via http request.
+						- Know about constructs library, define reusable constructs.
+						- Consume constructs from other people.
+						- Using AWS AppSync GraphQL with CDK.
+						
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						### Pre-requisites
+
+						- AWS cli installed and setup.
+						- Personal AWS Account, administrator access
+						- Node.JS
+						- Install cdk toolkit;
+
+						  ```
+						  npm install -g aws-cdk
+						  ```
+
+						- Check the toolkit version;
+						
+						  ```
+						  cdk --version
+						  ```
+						
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						### Initialize first project
+
+						- Create a new directory 
+						- Initialize cdk using typescript.
+						
+						```
+						mkdir cdk-workshop
+						cd cdk-workshop
+						cdk init sample-app --language typescript
+						```
+
+						- If you are using aws profiles, might need to add 
+						  
+							`--profile` flag to select the required profile
+
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						### The project structure
+
+						- Open the created folder and check the files created by CDK init command
+						- `cdk.json` tells toolkit how to run the app.
+						- `lib/cdk-workshop-stack.ts` where main stack stored.
+						- `bin/cdk-workshop.ts` entrypoint of the application.
+
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						### `cdk synth`
+
+						- Synthesize (convert javascript to cloudformation templates)
+						- The command generates the template.
+						- Let's deploy the test app. 🚀
+
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						At first
+						### `cdk bootstrap`
+
+						- First time, `bootstrap stack`. (Used to include resources for toolkit's operation)
+						- Includes s3 bucket, assets. templates.
+						
+						## `cdk deploy` 
+						### 🚀
+
+
+					</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						
+						<img src="https://cdkworkshop.com/images/hello-arch.png" />
+						
+						## Sample Application
+
+						- Simple rest endpoint with lambda and gateway.
+						- Cleanup Old Stack (Clean up stack code)
+						- `cdk diff`
+						- `cdk deploy` 
+						
+							Resources will get deleted.
+
+					</textarea>
+				</section>
 			</div>
 		</div>
 
